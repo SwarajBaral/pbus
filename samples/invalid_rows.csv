@@ -1,0 +1,5 @@
+name,address,phone
+Valid Hospital,1 Good St,555-0001
+,2 Nameless St,555-0002
+Addressless Hospital,,555-0003
+Too Many Fields,4 Extra St,555-0004,unexpected

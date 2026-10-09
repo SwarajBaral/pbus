@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: paribus-bulk
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PARIBUS_DIRECTORY_URL
+        value: https://hospital-directory.onrender.com
