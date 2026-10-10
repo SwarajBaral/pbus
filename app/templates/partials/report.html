@@ -1,0 +1,22 @@
+{% from "macros.html" import badge %}
+<section id="job">
+  <article>
+    <header class="spread">
+      <strong>{{ "CSV looks good" if report.valid else "CSV has problems" }}</strong>
+      {{ badge("completed" if report.valid else "failed", report.total_rows ~ " rows") }}
+    </header>
+
+    {% if report.errors %}
+    <table class="striped">
+      <thead><tr><th>Row</th><th>Problem</th></tr></thead>
+      <tbody>
+        {% for error in report.errors %}
+        <tr><td>{{ error.row or "file" }}</td><td>{{ error.message }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p>Ready to upload {{ report.total_rows }} hospitals.</p>
+    {% endif %}
+  </article>
+</section>

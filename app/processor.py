@@ -36,6 +36,7 @@ class BulkProcessor:
             job.status, job.error = JobStatus.FAILED, "unexpected error; see server logs"
         finally:
             job.processing_time_seconds = round(time.perf_counter() - started, 3)
+            job.notify()
         logger.info("batch %s finished as %s", job.batch_id, job.status)
         return job
 
@@ -61,6 +62,7 @@ class BulkProcessor:
                 hospital.mark_failed(str(exc))
             else:
                 hospital.mark_created(hospital_id)
+            job.notify()
 
     async def _resume(self, job: BulkJob) -> None:
         await self._adopt_orphans(job)

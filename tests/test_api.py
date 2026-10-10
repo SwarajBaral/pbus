@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from tests.conftest import sample, upload
 from tests.fake_directory import FakeDirectory
@@ -16,8 +17,8 @@ def test_health(api: TestClient) -> None:
     assert api.get("/health").json() == {"status": "ok"}
 
 
-def test_root_redirects_to_docs(api: TestClient) -> None:
-    assert api.get("/", follow_redirects=False).headers["location"] == "/docs"
+def test_root_redirects_to_dashboard(api: TestClient) -> None:
+    assert api.get("/", follow_redirects=False).headers["location"] == "/dashboard"
 
 
 def test_bulk_create_returns_full_result(api: TestClient, directory: FakeDirectory) -> None:
@@ -204,3 +205,24 @@ def test_validate_reports_file_level_errors(api: TestClient) -> None:
     body = api.post("/hospitals/bulk/validate", files=sample("too_many_21.csv")).json()
 
     assert body["errors"] == [{"row": None, "message": "CSV contains 21 hospitals; maximum is 20"}]
+
+
+def test_websocket_sends_final_snapshot_then_closes(api: TestClient) -> None:
+    done = bulk(api, upload(VALID_CSV))
+
+    with api.websocket_connect(f"/hospitals/bulk/{done['batch_id']}/ws") as ws:
+        snapshot = ws.receive_json()
+        assert snapshot["status"] == "completed"
+        assert snapshot["processed_hospitals"] == 2
+        with pytest.raises(WebSocketDisconnect):
+            ws.receive_json()
+
+
+def test_websocket_rejects_unknown_batch(api: TestClient) -> None:
+    with (
+        pytest.raises(WebSocketDisconnect) as closed,
+        api.websocket_connect("/hospitals/bulk/00000000-0000-0000-0000-000000000000/ws"),
+    ):
+        pass
+
+    assert closed.value.code == 1008

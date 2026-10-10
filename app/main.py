@@ -1,11 +1,14 @@
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
+from app import dashboard
 from app.config import Settings
 from app.directory_client import DirectoryClient
 from app.processor import BulkProcessor
@@ -40,11 +43,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings or Settings()
     app.state.store = JobStore()
     app.include_router(router)
+    app.include_router(dashboard.router)
+    app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
     app.add_exception_handler(JobConflictError, _conflict)
 
     @app.get("/", include_in_schema=False)
-    async def docs() -> RedirectResponse:
-        return RedirectResponse("/docs")
+    async def home() -> RedirectResponse:
+        return RedirectResponse("/dashboard")
 
     @app.get("/health", tags=["meta"])
     async def health() -> dict[str, str]:

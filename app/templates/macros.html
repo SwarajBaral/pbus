@@ -1,0 +1,3 @@
+{% macro badge(status, label=None) -%}
+  <mark class="badge" data-status="{{ status }}">{{ label or status|replace("_", " ") }}</mark>
+{%- endmacro %}

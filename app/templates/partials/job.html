@@ -1,0 +1,4 @@
+<section id="job"
+  {%- if not job.finished %} hx-ext="ws" ws-connect="/dashboard/batches/{{ job.batch_id }}/ws"{% endif %}>
+  {% include "partials/job_body.html" %}
+</section>

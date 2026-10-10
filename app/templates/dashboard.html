@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="layout" hx-target="#job" hx-swap="outerHTML">
+  <article class="upload">
+    <header>Upload CSV</header>
+    <form hx-encoding="multipart/form-data">
+      <input type="file" name="file" accept=".csv">
+      <div role="group">
+        <button type="button" class="secondary" hx-post="/dashboard/validate">Validate</button>
+        <button type="button" hx-post="/dashboard/batches">Upload</button>
+      </div>
+    </form>
+    <small>Columns <code>name,address,phone</code> · phone optional · max 20 rows</small>
+    <p id="flash"></p>
+  </article>
+
+  <section id="job">
+    <article><p>Upload a CSV to start a batch.</p></article>
+  </section>
+
+  <div class="batches" hx-get="/dashboard/batches" hx-trigger="load, every 5s" hx-target="this" hx-swap="innerHTML"></div>
+</div>
+{% endblock %}

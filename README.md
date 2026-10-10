@@ -9,7 +9,8 @@ activated only when every row succeeds.
 
 ```bash
 docker compose up -d
-open http://localhost:8000/docs
+open http://localhost:8000          # dashboard
+open http://localhost:8000/docs     # API docs
 ```
 
 ```bash
@@ -23,6 +24,7 @@ curl -F file=@samples/valid_5.csv http://localhost:8000/hospitals/bulk
 | `POST`   | `/hospitals/bulk`                    | Upload a CSV and process it (`?wait=false` → `202`)  |
 | `POST`   | `/hospitals/bulk/validate`           | Dry-run validation, no upstream calls                |
 | `GET`    | `/hospitals/bulk/{batch_id}`         | Progress and results (polling endpoint)              |
+| `WS`     | `/hospitals/bulk/{batch_id}/ws`      | Live progress: a snapshot on every change, then closes |
 | `POST`   | `/hospitals/bulk/{batch_id}/resume`  | Retry failed rows / activation (`?wait=false` → `202`) |
 | `DELETE` | `/hospitals/bulk/{batch_id}`         | Roll back: delete the whole batch upstream           |
 | `GET`    | `/health`                            | Liveness                                             |
@@ -66,6 +68,25 @@ Riverside Clinic,9 River Rd,
 }
 ```
 
+### Live progress
+
+Upload with `?wait=false`, then connect to the WebSocket. The server sends the job
+JSON (same shape as above) every time a row finishes, and closes the socket once
+the batch reaches a final state. Connecting late still returns the final snapshot.
+
+```bash
+curl -F file=@samples/max_20.csv "localhost:8000/hospitals/bulk?wait=false"   # → batch_id
+websocat ws://localhost:8000/hospitals/bulk/<batch_id>/ws
+```
+
+## Dashboard
+
+`/dashboard` is a small UI for the same flows: validate, upload, watch rows update
+live, resume, and roll back. It is server-rendered with Jinja templates and
+[htmx](https://htmx.org). The server sends HTML fragments over a WebSocket and htmx
+swaps them in, so the page carries almost no JavaScript. Styling is
+[Pico.css](https://picocss.com) plus a few lines of CSS.
+
 ## Lifecycle
 
 ```
@@ -88,6 +109,9 @@ Riverside Clinic,9 River Rd,
 | `rolled_back`           | Deleted upstream                           |
 
 ## Design decisions
+
+The reasoning behind these, including gaps in the brief and known limitations, is in
+[thoughts.md](thoughts.md).
 
 **Batch atomicity.** A partially failed batch is never activated, so a half-imported
 CSV never becomes visible. The client chooses what to do next: `resume` or roll back.
@@ -117,6 +141,11 @@ that is `processing` or `completed`, or acting on a `rolled_back` job, returns `
 result, as the spec asks. `?wait=false` returns `202` immediately, and the client
 polls `GET /hospitals/bulk/{batch_id}`.
 
+**One change signal, two streams.** Each job exposes `updates()`, an async
+iterator that wakes whenever a row or the job status changes. The JSON WebSocket
+and the dashboard's HTML WebSocket both consume it; they differ only in how a
+snapshot is encoded.
+
 **Storage.** Jobs live in an in-memory `JobStore`, as the assignment allows. To
 scale horizontally, swap it for Redis or Postgres and move execution to a worker
 queue. The store is the only stateful seam.
@@ -126,7 +155,11 @@ queue. The store is the only stateful seam.
 ```
 app/
   main.py              app factory, lifespan (shared HTTP client), error handlers
-  routes.py            HTTP endpoints
+  routes.py            JSON API endpoints + progress WebSocket
+  dashboard.py         dashboard pages, fragments, HTML WebSocket
+  streaming.py         shared "send each snapshot until finished" loop
+  templates/           Jinja layout, macros, partials
+  static/              CSS + a small error-flash script
   dependencies.py      DI: settings, store, processor, upload parsing, job lookup
   csv_parser.py        CSV → validated rows + error report
   directory_client.py  upstream client with retry policy
@@ -179,14 +212,15 @@ docker compose up -d                                                     # back 
 
 ```bash
 uv sync
-uv run pytest                          # 77 tests, upstream faked in memory
+uv run pytest                          # 96 tests, upstream faked in memory
 PARIBUS_LIVE=1 uv run pytest           # + end-to-end against the real upstream
 uv run pytest --cov=app                # 100% line coverage
 ```
 
 The suite covers CSV edge cases, the retry policy (what is and isn't retried),
 concurrency limits, partial failure, activation failure, resume (including orphan
-adoption), rollback, state conflicts, async mode, and every sample file.
+adoption), rollback, state conflicts, async mode, live progress streaming, both
+WebSockets, every dashboard flow, and every sample file.
 
 ## Deploy (Render)
 

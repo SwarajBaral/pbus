@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paribus · Hospital bulk upload</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.0.6/css/pico.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/htmx-ext-ws@2.0.2/ws.js"></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="container">
+    <nav>
+      <ul><li><strong>Paribus</strong>&nbsp;· Hospital bulk upload</li></ul>
+      <ul><li><a href="/docs">API docs</a></li></ul>
+    </nav>
+  </header>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

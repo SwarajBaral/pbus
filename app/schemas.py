@@ -1,7 +1,9 @@
+import asyncio
+from collections.abc import AsyncIterator
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, PrivateAttr, computed_field
 
 
 class JobConflictError(Exception):
@@ -75,6 +77,8 @@ class BulkJob(BaseModel):
     error: str | None = None
     hospitals: list[HospitalResult]
 
+    _changed: asyncio.Event = PrivateAttr(default_factory=asyncio.Event)
+
     @classmethod
     def from_rows(cls, rows: list[HospitalRow]) -> "BulkJob":
         return cls(hospitals=[HospitalResult(**row.model_dump()) for row in rows])
@@ -99,6 +103,23 @@ class BulkJob(BaseModel):
         if self.status not in allowed:
             raise JobConflictError(f"batch {self.batch_id} is {self.status}")
         self.status = JobStatus.PROCESSING
+        self.notify()
+
+    @property
+    def finished(self) -> bool:
+        return self.status is not JobStatus.PROCESSING
+
+    def notify(self) -> None:
+        self._changed.set()
+        self._changed = asyncio.Event()
+
+    async def updates(self) -> AsyncIterator["BulkJob"]:
+        while True:
+            changed = self._changed
+            yield self
+            if self.finished:
+                return
+            await changed.wait()
 
     def with_status(self, status: RowStatus) -> list[HospitalResult]:
         return [h for h in self.hospitals if h.status is status]

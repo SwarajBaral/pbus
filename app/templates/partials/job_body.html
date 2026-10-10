@@ -1,0 +1,49 @@
+{% from "macros.html" import badge %}
+<article id="job-body">
+  <header class="spread">
+    <div>
+      <strong>Batch</strong> <code class="batch-id">{{ job.batch_id }}</code><br>
+      <small>
+        {{ job.processed_hospitals }}/{{ job.total_hospitals }} created · {{ job.failed_hospitals }} failed
+        {%- if job.finished %} · {{ job.processing_time_seconds }}s{% endif %}
+      </small>
+    </div>
+    {{ badge(job.status) }}
+  </header>
+
+  <progress value="{{ job.processed_hospitals + job.failed_hospitals }}" max="{{ job.total_hospitals }}"></progress>
+  {% if job.error %}<p class="error">{{ job.error }}</p>{% endif %}
+
+  <div class="overflow-auto">
+    <table class="striped rows">
+      <thead>
+        <tr><th>#</th><th>Name</th><th>Address</th><th>Phone</th><th>ID</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for hospital in job.hospitals %}
+        <tr>
+          <td data-label="#">{{ hospital.row }}</td>
+          <td data-label="Name">{{ hospital.name }}</td>
+          <td data-label="Address">{{ hospital.address }}</td>
+          <td data-label="Phone">{{ hospital.phone or "—" }}</td>
+          <td data-label="ID">{{ hospital.hospital_id or "—" }}</td>
+          <td data-label="Status">
+            {{ badge(hospital.status) }}
+            {% if hospital.error %}<br><small class="error">{{ hospital.error }}</small>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if job.status in ("failed", "completed") %}
+  <footer class="actions" hx-target="#job" hx-swap="outerHTML">
+    {% if job.status == "failed" %}
+      <button hx-post="/dashboard/batches/{{ job.batch_id }}/resume">Resume</button>
+    {% endif %}
+    <button class="secondary outline" hx-post="/dashboard/batches/{{ job.batch_id }}/rollback"
+            hx-confirm="Delete every hospital in this batch?">Roll back</button>
+  </footer>
+  {% endif %}
+</article>

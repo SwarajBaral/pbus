@@ -1,0 +1,13 @@
+{% from "macros.html" import badge %}
+<article>
+  <header>Recent batches</header>
+  {% for job in jobs %}
+    <a class="batch" href="#" hx-get="/dashboard/batches/{{ job.batch_id }}" hx-target="#job">
+      <code>{{ job.batch_id|string|truncate(8, true, "") }}</code>
+      <small>{{ job.total_hospitals }} rows</small>
+      {{ badge(job.status) }}
+    </a>
+  {% else %}
+    <small>No batches yet.</small>
+  {% endfor %}
+</article>

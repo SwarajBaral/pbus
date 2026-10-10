@@ -1,9 +1,10 @@
 from collections.abc import Awaitable, Callable
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Response, WebSocket, status
 
-from app.dependencies import JobDep, ProcessorDep, ReportDep, StoreDep
+from app.dependencies import JobDep, LiveJobDep, ProcessorDep, ReportDep, StoreDep
 from app.schemas import BulkJob, JobStatus, ValidationReport
+from app.streaming import stream_job
 
 router = APIRouter(prefix="/hospitals/bulk", tags=["bulk"])
 
@@ -22,8 +23,7 @@ async def create_bulk(
     if not report.valid:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, report.model_dump())
 
-    job = BulkJob.from_rows(report.rows)
-    store.add(job)
+    job = store.add(BulkJob.from_rows(report.rows))
     return await _dispatch(processor.run, job, wait, background, response)
 
 
@@ -35,6 +35,11 @@ async def validate_csv(report: ReportDep) -> ValidationReport:
 @router.get("/{batch_id}", response_model=BulkJob)
 async def get_bulk(job: JobDep) -> BulkJob:
     return job
+
+
+@router.websocket("/{batch_id}/ws")
+async def watch_bulk(websocket: WebSocket, job: LiveJobDep) -> None:
+    await stream_job(websocket, job, lambda snapshot: snapshot.model_dump_json())
 
 
 @router.post("/{batch_id}/resume", response_model=BulkJob)

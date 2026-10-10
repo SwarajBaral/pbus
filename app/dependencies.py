@@ -1,7 +1,8 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, Request, UploadFile, status
+from fastapi import Depends, HTTPException, UploadFile, WebSocketException, status
+from starlette.requests import HTTPConnection
 
 from app.config import Settings
 from app.csv_parser import parse_hospitals
@@ -10,16 +11,16 @@ from app.schemas import BulkJob, ValidationReport
 from app.store import JobStore
 
 
-def get_settings(request: Request) -> Settings:
-    return request.app.state.settings
+def get_settings(connection: HTTPConnection) -> Settings:
+    return connection.app.state.settings
 
 
-def get_store(request: Request) -> JobStore:
-    return request.app.state.store
+def get_store(connection: HTTPConnection) -> JobStore:
+    return connection.app.state.store
 
 
-def get_processor(request: Request) -> BulkProcessor:
-    return request.app.state.processor
+def get_processor(connection: HTTPConnection) -> BulkProcessor:
+    return connection.app.state.processor
 
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
@@ -47,5 +48,13 @@ def get_job(batch_id: UUID, store: StoreDep) -> BulkJob:
     return job
 
 
+def get_live_job(batch_id: UUID, store: StoreDep) -> BulkJob:
+    job = store.get(batch_id)
+    if job is None:
+        raise WebSocketException(status.WS_1008_POLICY_VIOLATION, f"batch {batch_id} not found")
+    return job
+
+
 ReportDep = Annotated[ValidationReport, Depends(get_report)]
 JobDep = Annotated[BulkJob, Depends(get_job)]
+LiveJobDep = Annotated[BulkJob, Depends(get_live_job)]

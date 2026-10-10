@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
@@ -177,3 +178,41 @@ def test_claim_rejects_disallowed_states(current: JobStatus) -> None:
     with pytest.raises(JobConflictError, match=f"is {current}"):
         job.claim(JobStatus.FAILED, JobStatus.COMPLETED)
     assert job.status is current
+
+
+async def test_updates_stream_progress_until_finished(
+    processor: BulkProcessor, directory: FakeDirectory
+) -> None:
+    directory.delay = 0.01
+    job = make_job("A", "B", "C")
+    seen: list[tuple[JobStatus, int]] = []
+
+    async def watch() -> None:
+        async for snapshot in job.updates():
+            seen.append((snapshot.status, snapshot.processed_hospitals))
+
+    watcher = asyncio.create_task(watch())
+    await asyncio.sleep(0)
+    await processor.run(job)
+    await asyncio.wait_for(watcher, timeout=1)
+
+    assert seen[0] == (JobStatus.PROCESSING, 0)
+    assert seen[-1] == (JobStatus.COMPLETED, 3)
+    assert [count for _, count in seen] == sorted(count for _, count in seen)
+
+
+async def test_updates_on_finished_job_yield_once(processor: BulkProcessor) -> None:
+    job = await processor.run(make_job("A"))
+
+    assert [snapshot.status async for snapshot in job.updates()] == [JobStatus.COMPLETED]
+
+
+async def test_claim_wakes_watchers(processor: BulkProcessor, directory: FakeDirectory) -> None:
+    directory.rejected_names.add("A")
+    job = await processor.run(make_job("A"))
+    updates = job.updates()
+    assert (await anext(updates)).status is JobStatus.FAILED
+
+    job.claim(JobStatus.FAILED)
+
+    assert (await asyncio.wait_for(anext(updates), timeout=1)).status is JobStatus.PROCESSING

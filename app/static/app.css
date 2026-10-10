@@ -1,0 +1,83 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) 2.5fr;
+  grid-template-areas:
+    "upload  job"
+    "batches job";
+  grid-template-rows: auto 1fr;
+  gap: var(--pico-spacing);
+  align-items: start;
+}
+
+.upload { grid-area: upload; }
+.batches { grid-area: batches; }
+#job { grid-area: job; min-width: 0; }
+
+.spread, .batch, .actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.spread, .batch { justify-content: space-between; }
+.actions { flex-wrap: wrap; }
+
+.batch {
+  padding: 0.35rem 0;
+  text-decoration: none;
+}
+
+.batch-id { word-break: break-all; }
+
+.badge {
+  padding: 0.1rem 0.55rem;
+  border-radius: 1rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  color: #1b1b1b;
+  background: #e3e6ea;
+}
+
+.badge[data-status="processing"] { background: #fff1b8; }
+.badge[data-status="created"] { background: #cfe5ff; }
+.badge[data-status="created_and_activated"],
+.badge[data-status="completed"] { background: #c8f0d4; }
+.badge[data-status="failed"] { background: #ffd2d2; }
+
+.error, #flash { color: var(--pico-del-color); }
+
+.rows td:is([data-label="#"], [data-label="Phone"], [data-label="ID"]) { white-space: nowrap; }
+.rows .error { overflow-wrap: anywhere; }
+
+@media (max-width: 1024px) {
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-areas: "upload" "job" "batches";
+    grid-template-rows: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .rows thead { display: none; }
+
+  .rows tr {
+    display: block;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--pico-muted-border-color);
+  }
+
+  .rows td {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.2rem 0.5rem;
+    border: none;
+    text-align: right;
+  }
+
+  .rows td::before {
+    content: attr(data-label);
+    color: var(--pico-muted-color);
+    text-align: left;
+  }
+}
