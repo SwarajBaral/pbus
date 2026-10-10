@@ -9,7 +9,6 @@ from app.schemas import HospitalRow, UpstreamHospital
 
 RETRYABLE_STATUSES = {429, 502, 503, 504}
 
-# POST is not idempotent: only retry failures where the request never reached the server.
 UNSENT_ERRORS = (httpx.ConnectError, httpx.ConnectTimeout)
 
 
@@ -30,25 +29,35 @@ class DirectoryClient:
             "phone": row.phone,
             "creation_batch_id": str(batch_id),
         }
-        response = await self._request("POST", "/hospitals/", json=payload)
+        response = await self._request("POST", "/hospitals/", retry_on_timeout=False, json=payload)
         return _hospital(_json(response)).id
 
     async def list_batch(self, batch_id: UUID) -> list[UpstreamHospital]:
-        response = await self._request("GET", f"/hospitals/batch/{batch_id}", missing_ok=True)
+        response = await self._request(
+            "GET", f"/hospitals/batch/{batch_id}", retry_on_timeout=True, missing_ok=True
+        )
         if response.status_code == 404:
             return []
         return [_hospital(item) for item in _json(response)]
 
     async def activate_batch(self, batch_id: UUID) -> None:
-        await self._request("PATCH", f"/hospitals/batch/{batch_id}/activate")
+        await self._request("PATCH", f"/hospitals/batch/{batch_id}/activate", retry_on_timeout=True)
 
     async def delete_batch(self, batch_id: UUID) -> None:
-        await self._request("DELETE", f"/hospitals/batch/{batch_id}", missing_ok=True)
+        await self._request(
+            "DELETE", f"/hospitals/batch/{batch_id}", retry_on_timeout=True, missing_ok=True
+        )
 
     async def _request(
-        self, method: str, path: str, missing_ok: bool = False, **kwargs: Any
+        self,
+        method: str,
+        path: str,
+        *,
+        retry_on_timeout: bool,
+        missing_ok: bool = False,
+        **kwargs: Any,
     ) -> httpx.Response:
-        retryable = UNSENT_ERRORS if method == "POST" else httpx.TransportError
+        retryable = httpx.TransportError if retry_on_timeout else UNSENT_ERRORS
         failure = DirectoryError(f"{method} {path} was not attempted")
 
         for attempt in range(1, self._max_attempts + 1):
